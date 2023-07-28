@@ -1,7 +1,7 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Database;
 using MovieApp.Database.DataModels;
 using MovieApp.DataProcessing;
-using MovieAppSqlProcessor;
 
 
 namespace MovieApp
@@ -9,40 +9,22 @@ namespace MovieApp
     public partial class Form1 : Form
     {
         private List<Movie> updatedMovies = new List<Movie>();
-
-        public class DataProcessorFactory
+        public enum DataProcessingType
         {
-            public enum DataProcessingType
-            {
-                EntityProcessor,
-                SqlDataProcessor
-            }
-
-            public static IDataProcessor CreateDataProcessor(DataProcessingType type)
-            {
-                switch (type)
-                {
-                    case DataProcessingType.EntityProcessor:
-                        return new MovieAppDataProcessing();
-                    case DataProcessingType.SqlDataProcessor:
-                        return new SqlDataProcessor();
-                    default:
-                        throw new ArgumentException("Invalid DataProcessingType.");
-                }
-            }
+            EntityProcessor,
+            SqlDataProcessor
         }
 
+        public IDataProcessor dataprocessor;
+        public IServiceProvider serviceProvider;
 
-        public DataProcessorFactory.DataProcessingType userSelectedType;
-        public IDataProcessor dataprocessor = new SqlDataProcessor();
-        public DataProcessorFactory parentDataProcessorFactory = new DataProcessorFactory();
+        public DataProcessingType userSelectedType;
 
         private void InitializeDataProcessingTypeDropdown()
         {
-            dataProcessingTypeDropdown.DataSource = Enum.GetValues(typeof(DataProcessorFactory.DataProcessingType));
+            dataProcessingTypeDropdown.DataSource = Enum.GetValues(typeof(DataProcessingType));
 
         }
-
         public Movie newMovieToBind
         {
             get
@@ -55,9 +37,13 @@ namespace MovieApp
             }
         }
 
-        public Form1()
+        public Form1(IDataProcessor dataprocessor, IServiceProvider serviceProvider)
         {
             InitializeComponent();
+
+            this.dataprocessor = dataprocessor;
+            this.serviceProvider = serviceProvider;
+
             InitializeDataProcessingTypeDropdown();
             displayMovies();
 
@@ -67,7 +53,7 @@ namespace MovieApp
             };
 
             grid_allMovies.CellValueChanged += Grid_allMovies_CellValueChanged;
-
+            dataProcessingTypeDropdown.SelectedIndexChanged += dataProcessingTypeDropdown_SelectedIndexChanged_1;
         }
 
         private void Grid_allMovies_CellValueChanged(object sender, DataGridViewCellEventArgs e)
@@ -230,10 +216,20 @@ namespace MovieApp
 
         private void dataProcessingTypeDropdown_SelectedIndexChanged_1(object sender, EventArgs e)
         {
-            if (Enum.TryParse(dataProcessingTypeDropdown.SelectedItem.ToString(), out DataProcessorFactory.DataProcessingType selectedType))
-            {
-                dataprocessor = DataProcessorFactory.CreateDataProcessor(selectedType);
 
+            DataProcessingType selectedProcessor = (DataProcessingType)dataProcessingTypeDropdown.SelectedItem;
+
+            // Resolve the appropriate IDataProcessor implementation based on the selected item
+            switch (selectedProcessor)
+            {
+                case DataProcessingType.EntityProcessor:
+                    this.dataprocessor = serviceProvider.GetService<MovieAppDataProcessing>();
+                    break;
+                case DataProcessingType.SqlDataProcessor:
+                    this.dataprocessor = serviceProvider.GetService<SqlDataProcessor>();
+                    break;
+                default:
+                    break;
             }
         }
     }
